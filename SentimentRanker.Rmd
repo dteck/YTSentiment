@@ -2,10 +2,13 @@
 title: "Using Sentiment Analysis to Improve Youtube Reccomended Video Rankings"
 author: "Mark Richards"
 date: "5/4/2019"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes: \usepackage{float}
 urlcolor: blue
-header-includes:
-   - \usepackage{float}
 ---
 [GitHub](https://github.com/dteck/YTSentiment) Repository
 
@@ -16,23 +19,24 @@ knitr::opts_chunk$set(cache=TRUE)
 
 ## Introduction
 
-This report will cover a method for improving YouTube reccomendations based on the emotions that videos evoke in those that watch and comment on them. It is not meant to be a replacement for the deep neural network that Google uses to build its reccomendations. It is meant to demonstrate the usefulness of incorperating sentiment analysis as part of the ranking network for serving reccmendations to users.  
-This project requires some background knowledge of youTube and how it generates its reccomendations. In 2016 Google relased a paper titled ["Deep Neural Networks for YouTube Recommendations"](https://ai.google/research/pubs/pub45530) where it outlines its use of two deep neural nets to build and rank reccomendations. This paper covers the processes they use in great detail unfortuantly however it reads like an academic journal article. In 2018 Moin Nadeem a then Junior at the Massachusetts Institute of Technology (MIT) wrote a more human friendly overview of the topics covered in the paper for the website Towards Data Science titled simply 
-["How YouTube Recommends Videos"](https://towardsdatascience.com/how-youtube-recommends-videos-b6e003a5ab2f).  
-A brief overview is that Google uses two deep neural networks to create suggestions. The first looks at things like videos previously watched, search history, and demographics to narrow down the pool of videos to be ranked. The second deep neural net takes more features such as preview image and peer interest and uses that to order the list of reccomendations (Nadeem 2018). The goal of these networks is to maximize watch time. A diagram of this process is included below.
+This report will cover a method for improving YouTube recommendations based on natural language processing and sentiment analysis. The goal is to improve the ranking of recommended videos by evaluating the emotions that videos evoke in those that watch and comment on them against the list of recommended videos. It is not meant to be a replacement for the deep neural network that Google uses to build its recommendations. It is simply meant to demonstrate the usefulness of incorporating sentiment analysis as part of the ranking system for serving recommendations to users.  
+This project requires some background knowledge of YouTube and how it generates its recommendations. In 2016 Google released a paper titled ["Deep Neural Networks for YouTube Recommendations"](https://ai.google/research/pubs/pub45530) where it outlines its use of two deep neural nets to build and rank recommendations. This paper covers the processes they use in great detail unfortunately however it reads like an academic journal article.  
+In 2018 Moin Nadeem a then Junior at the Massachusetts Institute of Technology (MIT) wrote a more human friendly overview of the topics covered in the Google paper for the website Towards Data Science titled simply ["How YouTube Recommends Videos"](https://towardsdatascience.com/how-youtube-recommends-videos-b6e003a5ab2f).  
+A brief overview is that Google uses two deep neural networks to create suggestions. The first looks at things like videos previously watched, search history, and demographics to narrow down the pool of videos to be ranked. The second neural net incorporates additional features such as preview image and peer interest and uses that to order the list of recommendations (Nadeem 2018). The goal of these networks is to maximize watch time. A diagram of this process is included below.
+
 ```{r YTdiag, echo=FALSE, out.width = '70%'}
 knitr::include_graphics("YouTube_DNN_Diag.png")
 print("Diagram of YouTube Deep Neural Networks (Nadeem 2018)")
 ```
 
 
-At the end of april 2019 news reports such as ["Alphabet had more than $70 billion in market cap wiped out, and it says YouTube is one of the problems"](https://www.cnbc.com/2019/04/30/youtube-algorithm-changes-negatively-impact-google-ad-revenue.html) began to appear. These articles blame a dip in YouTube engagment and ad revenue for the drop in market value. They also indicate that YouTube's recent efforts to curb fake news and conspiracy theories may be to blame for the drop in engagment. 
-
-It may be that adding sentiment analysis can help improve engament again by connecting users with content that matches emotional tones. This also opens the door to building emotional profiles of users but that discussion is beyond this paper. 
+At the end of April 2019 news reports such as ["Alphabet had more than $70 billion in market cap wiped out, and it says YouTube is one of the problems"](https://www.cnbc.com/2019/04/30/youtube-algorithm-changes-negatively-impact-google-ad-revenue.html) began to appear. These articles blame a dip in YouTube engagement and ad revenue for the drop in market value. They also indicate that YouTube’s recent efforts to curb fake news and conspiracy theories may be to blame for the drop in engagement. It may be that adding sentiment analysis can help improve engagement again by connecting users with content that matches emotional tones.  
 
 ##Analysis
-**Note:**
-To run the code in this analysis an API key is required. Instructons on how to aquire an API key can be found here: ["YouTube Data API Overview"](https://developers.google.com/youtube/v3/getting-started). This API key should be saved to your working directory as an RDS file with a data.frame in the following format. This file will __not__ be provided on the [GitHub](https://github.com/dteck/YTSentiment) Repository for this paper.
+**Note: **
+Note: To run the code in this analysis an API key is required. Instructions on how to acquire an API key can be found here: ["YouTube Data API Overview"](https://developers.google.com/youtube/v3/getting-started). This API key should be saved to your working directory as an RDS file with a data Frame in the following format. This file will not be provided on the [GitHub](https://github.com/dteck/YTSentiment) Repository for this paper.
+
+
 ```{r APIKeyFormat,  eval=FALSE}
 APIKey<-data.frame(
   app_id='Your App ID Here', 
@@ -57,7 +61,7 @@ library(kableExtra)
 ```
 
 
-Once the packages are installed and loaded the script will check to make sure you have an API key installed. If you do not it will display the URL for how to get one. If it is able to find a key RDS is will load the file and setup the Oauth token. You will be directed to a website to authorize the app the first time you run this.
+Once the packages are installed and loaded the script will check to make sure you have an API key installed. If you do not it will display a URL where you can learn how to set one up. If it does find a key RDS it will load the file and setup the Oauth token. You will be directed to a website to authorize the app the first time you run this.
 ```{r APIKeyLoad}
 APIKey<-file_test("-f","APIKey.rds") #test if apikey exists
 if (APIKey == FALSE) { #run code block if apikey does not exist
@@ -306,7 +310,7 @@ kable(RankedList[order(RankedList$rank),]) %>%
 
 
 ##Conclusion
-The idea of using natureal language processing 
-```{r xxx}
-
-```
+We have found that there is room to improve the reccomendations for videos served by YouTube with the additon of natural language processing to match emotional tones across suggestions. It also raises the possibiltiy of using these methods to build sentiment profiles of users. Combine the sentinments of every comment they leave. As well as for every video they like. Find what emotions they are drawn to and feed that back to them.  
+There is a consideration that shold be made for perfomance. This paper is a proof of concept and woudl nto be the most efficent way to impliment this type fo ranking. It would make more sense for YouTube to build its own lexicon that is specific to its comments. This would allow them to get more accurate results reguarding expression of emotions and valance of comments.  
+They shoudl also consider running the sentiment analysis across all comments currently available and going forward when a user submits a comment or edits one it does the sentiment processign then and simpyl saves the numeric results. These logicals could then be quickly processed when building reccomendations.  
+As a further step when auto translation becomes more robust sentiment analysis could be run across the video transcripts to better match content emotion to a users preference. All of these steps may help improve YouTubes core metric of watch time. But barring prooper A/B testing which is outside of the scope of this paper the exact impact is unknonwn.
