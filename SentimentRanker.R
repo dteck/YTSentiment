@@ -15,7 +15,7 @@ library(tidyverse)
 
 
 #--checks to see if API key is available--
-APIKey<-file_test("-f","APIkey.RDS") #test if apikey exists
+APIKey<-file_test("-f","APIKey.rds") #test if apikey exists
 if (APIKey == FALSE) { #run code block if apikey does not exist
   print("No youtube API Key")
   print("See https://developers.google.com/youtube/v3/getting-started")
@@ -23,7 +23,6 @@ if (APIKey == FALSE) { #run code block if apikey does not exist
 }else { #run code block if api key exists
   APIKey<-readRDS("APIKey.rds") #read API key
   yt_oauth(app_id=APIKey$app_id, app_secret = APIKey$app_secret, token = "") #load key to memory
-  rm(key,APIKey) #remove the key file, library manages Token once initalized
 }
 #------
 
@@ -58,7 +57,7 @@ Baseavg<-apply(BaseEmo, 2, mean)
 Baseavg<-data.frame(name=Baseavg)
 #plot the emotional sentiment averages
 Avg<-ggplot(Baseavg, aes_(x=row.names(Baseavg), y=Baseavg$name, fill=row.names(Baseavg)))+geom_bar(stat="identity")+theme(legend.position="none",axis.title.x=element_blank(),axis.title.y=element_blank())
-Avg+ggtitle(BaseTitle,paste("Video ID: ",baseVid$videoId[1]))
+Avg+ggtitle(BaseTitle,paste("Video ID: ",baseVid$videoId[1])) #avgplot1
 #########
 
 #########
@@ -139,10 +138,10 @@ Recc
 RelatedEmoAvgTrans<-data.frame(t(RelatedEmoAvg)) # reshape df for graphing
 seq<-c(1:length(RelatedVids$rel_video_id)) #set number of itterations
 for (n in seq){ #add data points for each video to the graph to show spread.
-  Recc<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n]))
+  ReccAll<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n]))
 }
 rm(n,seq) 
-Recc #display final graph
+ReccAll #display final graph
 #########
 
 #########
