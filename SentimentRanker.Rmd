@@ -1,7 +1,7 @@
 ---
-title: "Using Sentiment Analysis to Improve Youtube Reccomended Video Rankings"
+title: "Using Sentiment Analysis to Improve YouTube Recommended Video Rankings"
 author: "Mark Richards"
-date: "5/4/2019"
+date: "5/10/2019"
 output:
   pdf_document: default
   html_document:
@@ -19,9 +19,9 @@ knitr::opts_chunk$set(cache=TRUE)
 
 ## Introduction
 
-This report will cover a method for improving YouTube recommendations based on natural language processing and sentiment analysis. The goal is to improve the ranking of recommended videos by evaluating the emotions that videos evoke in those that watch and comment on them against the list of recommended videos. It is not meant to be a replacement for the deep neural network that Google uses to build its recommendations. It is simply meant to demonstrate the usefulness of incorporating sentiment analysis as part of the ranking system for serving recommendations to users.  
+This report will cover a method for improving YouTube recommendations based on natural language processing and sentiment analysis. The goal is to improve the ranking of recommended videos by evaluating the emotions that a video evokes in those that comment on it against the emotions expressed in the comments of a list of recommended videos. It is not meant to be a replacement for the deep neural network that Google uses to build its recommendations. It is simply meant to demonstrate the a potential for incorporating sentiment analysis as part of the ranking system for serving recommendations to users.   
 This project requires some background knowledge of YouTube and how it generates its recommendations. In 2016 Google released a paper titled ["Deep Neural Networks for YouTube Recommendations"](https://ai.google/research/pubs/pub45530) where it outlines its use of two deep neural nets to build and rank recommendations. This paper covers the processes they use in great detail unfortunately however it reads like an academic journal article.  
-In 2018 Moin Nadeem a then Junior at the Massachusetts Institute of Technology (MIT) wrote a more human friendly overview of the topics covered in the Google paper for the website Towards Data Science titled simply ["How YouTube Recommends Videos"](https://towardsdatascience.com/how-youtube-recommends-videos-b6e003a5ab2f).  
+In 2018 Moin Nadeem a then Junior at the Massachusetts Institute of Technology (MIT) wrote a more human friendly overview of the topics covered in the Google paper for the website Towards Data Science titled simply ["How YouTube Recommends Videos"](https://towardsdatascience.com/how-youtube-recommends-videos-b6e003a5ab2f).    
 A brief overview is that Google uses two deep neural networks to create suggestions. The first looks at things like videos previously watched, search history, and demographics to narrow down the pool of videos to be ranked. The second neural net incorporates additional features such as preview image and peer interest and uses that to order the list of recommendations (Nadeem 2018). The goal of these networks is to maximize watch time. A diagram of this process is included below.
 
 ```{r YTdiag, echo=FALSE, out.width = '70%'}
@@ -30,19 +30,19 @@ print("Diagram of YouTube Deep Neural Networks (Nadeem 2018)")
 ```
 
 
-At the end of April 2019 news reports such as ["Alphabet had more than $70 billion in market cap wiped out, and it says YouTube is one of the problems"](https://www.cnbc.com/2019/04/30/youtube-algorithm-changes-negatively-impact-google-ad-revenue.html) began to appear. These articles blame a dip in YouTube engagement and ad revenue for the drop in market value. They also indicate that YouTube’s recent efforts to curb fake news and conspiracy theories may be to blame for the drop in engagement. It may be that adding sentiment analysis can help improve engagement again by connecting users with content that matches emotional tones.  
+
+At the end of April 2019 news reports such as ["Alphabet had more than $70 billion in market cap wiped out, and it says YouTube is one of the problems"](https://www.cnbc.com/2019/04/30/youtube-algorithm-changes-negatively-impact-google-ad-revenue.html) began to appear. These articles blame a dip in YouTube engagement and ad revenue for the drop in market value. They also indicate that YouTube’s recent efforts to curb fake news and conspiracy theories may be to blame for the drop in engagement. It may be that adding sentiment analysis could help improve engagement again by connecting users with content that matches emotional tones.  
 
 ##Analysis
-**Note: **
-Note: To run the code in this analysis an API key is required. Instructions on how to acquire an API key can be found here: ["YouTube Data API Overview"](https://developers.google.com/youtube/v3/getting-started). This API key should be saved to your working directory as an RDS file with a data Frame in the following format. This file will not be provided on the [GitHub](https://github.com/dteck/YTSentiment) Repository for this paper.
+**Note: ** To properly run the code in this analysis an API key is required. Instructions on how to acquire an API key can be found here: ["YouTube Data API Overview"](https://developers.google.com/youtube/v3/getting-started). This file will not be provided on the [GitHub](https://github.com/dteck/YTSentiment) Repository for this paper. A copy of this script for those who wish to set up their own API key is available on my GitHub as [SentimentRanker_wKey.R]( https://raw.githubusercontent.com/dteck/YTSentiment/master/SentimentRanker_wKey.R) All of the API calls rely on the TubeR package to handle the Oauth token.   
+There is also an issue of reproducibility. The suggestions served to me in this report will almost certainly not be reproducible by anyone else. They are generated by the aforementioned deep neural nets and as such are tailored to what YouTube believes would best maximize my watch time. To counter this issue for the report I have created RDS files of any data that needs to be pulled from YouTube. The code for this report and the accompanying R script will call these RDS files rather than making the API calls. To examine how the API calls work see the script provided for those with keys.
+ 
+Before running the script make sure you have the following RDS files in your working directory.
 
-
-```{r APIKeyFormat,  eval=FALSE}
-APIKey<-data.frame(
-  app_id='Your App ID Here', 
-  app_secret = 'Your App Secret Here')
-```
-
+1.  [RelatedVids.rds](https://github.com/dteck/YTSentiment/raw/master/RelatedVids.rds)
+2.	[BaseVid.rds](https://github.com/dteck/YTSentiment/raw/master/baseVid.rds)
+3.	[BaseDetail.rds](https://github.com/dteck/YTSentiment/raw/master/BaseDetail.rds)
+4.	[RelatedComm.rds](https://github.com/dteck/YTSentiment/raw/master/RelatedComm.rds)
 
 There are several packages we will require to start our analysis. This code will install and load them.
 ```{r Libraries,  warning=FALSE, message=FALSE}
@@ -61,8 +61,8 @@ library(kableExtra)
 ```
 
 
-Once the packages are installed and loaded the script will check to make sure you have an API key installed. If you do not it will display a URL where you can learn how to set one up. If it does find a key RDS it will load the file and setup the Oauth token. You will be directed to a website to authorize the app the first time you run this.
-```{r APIKeyLoad}
+Once the packages are installed and loaded the script would check to make sure you have an API key installed. If you did not it would display a URL where you could learn how to set one up. If it did find a key RDS it would load the file and setup the Oauth token. It would then direct you to a website to authorize the app to access your account. Since you are not expected to set up an API key this code is only shown as an example. 
+```{r APIKeyLoad, eval=FALSE}
 APIKey<-file_test("-f","APIKey.rds") #test if apikey exists
 if (APIKey == FALSE) { #run code block if apikey does not exist
   print("No youtube API Key")
@@ -79,24 +79,23 @@ if (APIKey == FALSE) { #run code block if apikey does not exist
 ```
 
 
-Now that the API key is in place its time to pick a video that we want reccomendations for. for this paper I will be using a video from the cooking channel [Binging With Babish](https://www.youtube.com/channel/UCJHA_jMfCvEnv-3kRjTCQXw) where he attemts to recreate [Jake's Perfect Sandwich from Adventure Time](https://www.youtube.com/watch?v=HsxBw6ls7Z0). The following code sets the "Base" video URL.
+Now that the API key is glossed over, it’s time to pick a video that we want recommendations for. For this report I will be using a video from the cooking channel [Binging With Babish](https://www.youtube.com/channel/UCJHA_jMfCvEnv-3kRjTCQXw) where he attempts to recreate [Jake's Perfect Sandwich from Adventure Time](https://www.youtube.com/watch?v=HsxBw6ls7Z0). The following code is where the URL for the video we like is entered. This is referred to as the “Base” video from this point on.
 ```{r BaseVideoLink}
 Baselink<-"https://www.youtube.com/watch?v=HsxBw6ls7Z0" #link to a liked youtube video
 ```
 
-Once the base video URL is entered we need to separate out the Video ID. This is the string of alphanumeric characters after the "=" in the URL. A regular expresion is used to select everything past the "=" sign and save it for use with the API calls.
+Once the base video URL is entered, we need to separate out the Video ID. This is the string of alphanumeric characters after the "=" in the URL. A regular expression is used to select everything past the "=" sign and save it for use with the API calls.
 ```{r BaseVideoID}
 Baselink<-str_match(Baselink,"[^=]+$") #regex to extract video ID
 ```
 
-When the Video ID is isolated we can begin making calls to the YouTube API and pulling data down for analysis. To start lets retieve what YouTube considers to be the top ten reccomendations for me.
-```{r BaseVideoInfo, warning=FALSE, message=FALSE, results='hide'}
-yt_oauth(app_id=APIKey$app_id, 
-         app_secret = APIKey$app_secret, token = "")
-#Markdown has issues with chunk execution order so the key may need to be re entered
-RelatedVids<- get_related_videos(video_id =Baselink, max_results = 11) #Get recomended
+With the Video ID isolated we can begin making calls to the YouTube API and pulling data down for analysis. Again, the code is shown as an example but the [RelatedVids.rds](https://github.com/dteck/YTSentiment/raw/master/RelatedVids.rds) will be loaded with the results of the API calls.
+```{r BaseVideoInfo, warning=FALSE, message=FALSE, results='hide', eval=FALSE}
+RelatedVids<- get_related_videos(video_id =Baselink, max_results = 11) #pull recomended
 ```
-
+```{r BaseVideoRDS, warning=FALSE, message=FALSE, results='hide'}
+RelatedVids<- readRDS("RelatedVids.rds") #Load RDS with API results
+```
 
 This call returns a list of videos with 17 variables. To view the list we will only display the two most releveant variables Video ID and Title.
 ```{r BaseVideoTable}
@@ -105,7 +104,23 @@ kable(RelatedTable) %>%
   kable_styling(latex_options="scale_down")
 ```
 
-**Note: ** Reproducability of this list will almost certianly be impossible. This is the list of reccomendations generated specifically for me based on Googles deep neural networks being fed my personal preferances. So consider everything past this point an illustarative example.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Now that the list of reccomendations is stored we can begin analyzing our Base video. We are going to want to grab all of the comments for the Base video. We will also get the deatils for the Base video and extract the Title of the video for use later.
 ```{r BaseVideoDetails, warning=FALSE, message=FALSE, results='hide'}
 yt_oauth(app_id=APIKey$app_id, 
