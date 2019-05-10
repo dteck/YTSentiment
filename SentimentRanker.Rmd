@@ -52,12 +52,14 @@ if (!require(ggplot2)) install.packages('ggplot2')
 if (!require(tidyverse)) install.packages('tidyverse')
 if (!require(knitr)) install.packages('knitr')
 if (!require(kableExtra)) install.packages('kableExtra')
+if (!require(stringr)) install.packages('stringr')
 library(tuber)
 library(syuzhet)
 library(ggplot2)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
+library(stringr)
 ```
 
 
@@ -97,7 +99,7 @@ RelatedVids<- get_related_videos(video_id =Baselink, max_results = 11) #pull rec
 RelatedVids<- readRDS("RelatedVids.rds") #Load RDS with API results
 ```
 
-This call returns a list of videos with 17 variables. To view the list we will only display the two most releveant variables Video ID and Title.
+This call returns a list of videos with 17 variables. To view the list we will only display the two most releveant variables Video ID and Title. We will save this list for later.
 ```{r BaseVideoTable}
 RelatedTable<-RelatedVids[,c("rel_video_id","title")]
 kable(RelatedTable) %>% 
@@ -105,44 +107,36 @@ kable(RelatedTable) %>%
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Now that the list of reccomendations is stored we can begin analyzing our Base video. We are going to want to grab all of the comments for the Base video. We will also get the deatils for the Base video and extract the Title of the video for use later.
-```{r BaseVideoDetails, warning=FALSE, message=FALSE, results='hide'}
-yt_oauth(app_id=APIKey$app_id, 
-         app_secret = APIKey$app_secret, token = "")
-#Markdown has issues with chunk execution order so the key may need to be re entered
+With the list of recommendations stored it’s time to start analyzing our Base video. The API lets us pull all of the comments for a video with the function get_all_comments(). We also want to use the function get_video_details(). Both of these functions require an API key so I will show the code used and then have the script load RDS files with the results. The code will also extract the title from the Video Details.
+```{r BaseVideoDetails, warning=FALSE, message=FALSE, results='hide', eval=FALSE}
 baseVid<-get_all_comments(video_id = Baselink) #get the comments from that video
 BaseDetail<-get_video_details(video_id = Baselink)#pull details of the base video
 BaseTitle<-BaseDetail$items[[1]]$snippet$title #extract the title of the base video
 ```
+```{r BaseVideoDetailsRDS, warning=FALSE, message=FALSE, results='hide'}
+baseVid<-readRDS("baseVid.rds") #Load RDS with API results
+BaseDetail<-readRDS("BaseDetail.rds") #Load RDS with API results
+BaseTitle<-BaseDetail$items[[1]]$snippet$title #extract the title of the base video
+```
 
-The API call to get all comments tells us that the Base video has ```r  length(baseVid$id) ``` comments. The Video Details call gives us basic information like the video description, thumbnail urls, video tags, and title. A quick view of the relevant parts of the comments section shows us things like who made the comment, what the comment said, and how many poeple liked the comment. We can take a look at the top rated comments. After sanitizing the unicode characters since LaTex does not like them.
+The API call to get all comments tells us that the Base video has ```r  length(baseVid$id) ``` comments. The Video Details include a lot of information about things like the video description, thumbnail urls, video tags, title, etc. Again we are mainly focused on extracting the title so we can display it with our graphs later.  
+A quick view of the comments data frame shows us things like who made the comment, what the comment said, and how many people liked the comment. We can take a look at the top rated comments, after removing the Unicode characters since LaTex does not like them.
+
 
 ```{r BaseCommentTable}
+
 BaseCommentTable<-baseVid[,c("authorDisplayName" ,"textOriginal","likeCount")]
-BaseCommentTable$textOriginal<-iconv(BaseCommentTable$textOriginal, to="ASCII")
+BaseCommentTable$textOriginal<-iconv(str_trunc(BaseCommentTable$textOriginal,80,"right"),
+                                     to="ASCII")
 BaseCommentTable$authorDisplayName<-iconv(BaseCommentTable$authorDisplayName, to="ASCII")
 BaseCommentTable$likeCount<-as.numeric(BaseCommentTable$likeCount)
-BaseCommentTable <- BaseCommentTable[order(BaseCommentTable$likeCount, decreasing = TRUE),]
+BaseCommentTable<-BaseCommentTable[order(BaseCommentTable$likeCount, decreasing = TRUE),]
 kable(head(BaseCommentTable,10)) %>%  kable_styling(latex_options="scale_down")
 ```
 
-Now that we have the comments for the base video ready to go we can start getting them ready to feed n our sentiment analysis engine. In this case we will be using the [syuzhet](https://cran.r-project.org/web/packages/syuzhet/index.html) package. and its nrc_sentiment() function. This fucntion loads a dictionary of words that have been tagged with a set of emotions and Calls calcualts the presenace and the valance either positive or negative. The NRC Word-Emotion Association Lexicon was built by Saif Mohammad and the National Research Council of Canada. More information about it can be found here: [NRC Emotion Lexicon](https://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm). We can look at the first few rows to see what the results are.
+
+With the comments for the base video ready to go we can make sure there are no weird characters by converting them to UTF-8 and then feed them to our sentiment analysis engine. In this case we will be using the [syuzhet](https://cran.r-project.org/web/packages/syuzhet/index.html) package. and its nrc_sentiment() function. This function loads a dictionary of words that have been tagged with a set of emotions and the valance (positive or negative). The function then matches the words in our comments with words in the dictionary and tells us what emotions are expressed and if the valance is positive or negative. The NRC Word-Emotion Association Lexicon was built by Saif Mohammad and the National Research Council of Canada. More information about it can be found here: [NRC Emotion Lexicon](https://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm). We can look at the first few rows to see what the results are.
+
 ```{r SanitarySentiment, cache=TRUE}
 #sanitize the text by converting to utf-8
 baseVid$sanitary<-iconv(baseVid$textOriginal, to="UTF-8")
@@ -151,7 +145,7 @@ BaseEmo<-get_nrc_sentiment(baseVid$sanitary)
 kable(head(BaseEmo,10)) %>%  kable_styling(latex_options="scale_down")
 ```
 
-These logicals are intereting but not very useful on theor own. We are more interested in the emotions people are expressing overall. To find that we can take the average of each of these columns and get a sort of emotional profile.
+These results are interesting but not very useful on their own. We are more interested in the emotions people are expressing overall. To find that we can take the average of each of these columns and get a kind of emotional profile for how the audience reacts and interacts.
 ```{r BaseEmotionalAverage, cache=TRUE}
 #create averages of sentiment and emotion for base video
 Baseavg<-apply(BaseEmo, 2, mean)
@@ -160,7 +154,7 @@ Baseavg<-data.frame(name=Baseavg)
 kable(Baseavg)
 ```
 
-Now we want to make a graph showing these averages so we can understand what we are looking at. We will also include the Title of the video and the Video ID.
+We can now take this table of the average emotions expressed in the comments for the base video and turn it into a more intuitive representation with ggplot.
 ```{r BaseEmotionalPlot, cache=TRUE}
 #plot the emotional sentiment averages
 Avg<-ggplot(Baseavg, aes_(x=row.names(Baseavg), y=Baseavg$name,
@@ -168,13 +162,11 @@ fill=row.names(Baseavg)))+geom_bar(stat="identity")+theme(legend.position="none"
                        axis.title.x=element_blank(),axis.title.y=element_blank())
 Avg+ggtitle(BaseTitle,paste("Video ID: ",baseVid$videoId[1]))
 ```
-Here we can see that the comments are overwhelimigly positive. While Anticipation, Joy, Negativity, and Trust were all about equally represented. This graphs represents the general level of different emotions expressed by people who commented on the video. This gives us the emotional profile we will be attempting to match across the set of videos YouTube reccomends to us.  
 
-the next step is to use the API to pull the comments for our list of reccomended videos. The following code will build a list of data frames that contain all of the comments for the reccomended videos. For this report it will also display the number of comments on each of the related videos.
-```{r RelatedComments, cache=TRUE}
-yt_oauth(app_id=APIKey$app_id, 
-         app_secret = APIKey$app_secret, token = "")
-#Markdown has issues with chunk execution order so the key may need to be re entered
+Here we can see that the comments are overwhelmingly positive. While Anticipation, Joy, Negativity, and Trust were all about equally represented. This graph shows us the general level of different emotions expressed by people who commented on the video. This is the emotional profile that we will be attempting to match across our set of recommended videos. Depending on how close they come to this exact profile is how we will rank them.   
+The next step is to use the API to pull the comments for our list of recommended videos. The following code would build a list of data frames that contain all of the comments for the recommended videos. For this report I will show the code and then load the results from an RDS file. I will also display the number of comments on each of the related videos. 
+
+```{r RelatedComments, cache=TRUE, eval=FALSE}
 seq<-1:length(RelatedVids$rel_video_id) #set iteration length
 RelatedComm<-list() #initalize a list for the related video comments
 for (n in seq){ #get comments,sanitize by converting to UTF-8 format
@@ -184,11 +176,19 @@ for (n in seq){ #get comments,sanitize by converting to UTF-8 format
   RelatedTable$Comments[n]<-length(RelatedComm[[n]]$id)
 }
 rm(n,seq) #remove n and sequence used to itterate over list
-kable(RelatedTable) %>% 
+```
+```{r RelatedCommentsRDS, cache=TRUE}
+RelatedComm<-readRDS("RelatedComm.rds") #Load RDS with API results
+seq<-1:length(RelatedVids$rel_video_id)
+for (n in seq){
+RelatedTable$Comments[n]<-length(RelatedComm[[n]]$id) #calc comments
+}
+rm(n,seq)
+kable(RelatedTable) %>% #display table for RMD
   kable_styling(latex_options="scale_down")
 ```
 
-Now we need to go entry by entry on the list and get the NRC sentiments. This code will perform that function. A word of caution this process can take some some if there is a large numebr of caomments. 
+Here the process repeats a bit. The code will go through and calculate the emotions for all of the comments on the related videos. **Warning:** this can take several minutes. 
 ```{r RelatedSentimentsAll, cache=TRUE}
 seq<-1:length(RelatedVids$rel_video_id) #set iteration length
 RelatedEmo<-list()
@@ -198,7 +198,7 @@ for (n in seq){ #itterate over all comments and get emotional sentiment
 rm(n,seq) 
 ```
 
-Once the sentiments are calucalted we need to build the averages of those sentiments.
+This next bit of code will take the emotions and calculate the averages for each video. Similar to how we did it for the Base video.
 ```{r RelatedAvgAll, cache=TRUE}
 seq<-1:length(RelatedEmo) #set iteration length
 RelatedEmoAvg<-list() 
@@ -209,16 +209,16 @@ rm(n,seq)
 ```
 
 
-Here there is a bit of data reshaoing going on. The list of related video emotional averages needs to be converted from a list to a data frame. We also want to add the video IDs to the list so we can keep track of which video is which. 
+At this point there is a bit of data reshaping that needs to be done. The emotional averages for each video are converted from a list to a data frame. We also add the Video ID in so we can keep track of what emotional profile belongs to which video. To see what this looks like after a table will be included.
 ```{r RelatedEmoTranspose, cache=TRUE}
 RelatedEmoAvg<-data.frame(RelatedEmoAvg) #reshape the dataframe
-RelatedEmoAvg<-data.frame(t(RelatedEmoAvg))
+RelatedEmoAvg<-data.frame(t(RelatedEmoAvg)) #transpose the df
 rownames(RelatedEmoAvg)<-RelatedVids$rel_video_id #set row names
-kable(RelatedEmoAvg) %>% 
-  kable_styling(latex_options="scale_down")
+kable(RelatedEmoAvg) %>% #show table
+  kable_styling(latex_options="scale_down") #fit to page
 ```
 
-With all of the comments now converted to averages we need to rank the videos. We do this by calcualting the absolute differences then ranking each emotion and each video. This again will rely on a considerable amount of data reshaping to properly rank all of the elements. This next bit of code starts the process by clauclating the absolute differences of each emotion from the Base video average.
+After a lot of calculations, we now have the emotional profiles for each of the related videos. Now we have to create a way to rank them. We know that we want to match the emotional profile of the Base video. So we will start by calculating the absolute difference of the emotions for each of the related videos from the Base video.
 ```{r AbsoluteEmo, cache=TRUE}
 Baseavg<-data.frame(t(Baseavg)) #transpose the baseavg df
 AbsoluteEmo<-data.frame() #initialize ABS difference dataframe
@@ -232,6 +232,20 @@ rownames(AbsoluteEmo)<-RelatedVids$rel_video_id #set row names
 kable(AbsoluteEmo) %>% 
   kable_styling(latex_options="scale_down")
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 With the table of absolute differences we can now begin reshaping and ranking the data. The idea here is that we want to rotate the data frame above so that each emotion is a row and each video is a column. Then we want to rank each columns values. The larger the value the higher its rank, becuase ranking happens in accending order.
 
