@@ -1,152 +1,184 @@
-##YouTube Recommendation Sentiment Analysis and Ranking
-##Author: Mark Richards
-##GitHub: https://github.com/dteck/YTSentiment
+#---
+#title: "Using Sentiment Analysis to Improve YouTube Recommended Video Rankings"
+#author: "Mark Richards"
+#date: "5/10/2019"
+#GitHub: https://github.com/dteck/YTSentiment
+#---
 
-#--install and load required packages--
+#---Install and load required packages---
 if (!require(tuber)) install.packages('tuber')
 if (!require(syuzhet)) install.packages('syuzhet')
 if (!require(ggplot2)) install.packages('ggplot2')
 if (!require(tidyverse)) install.packages('tidyverse')
+if (!require(knitr)) install.packages('knitr')
+if (!require(kableExtra)) install.packages('kableExtra')
+if (!require(stringr)) install.packages('stringr')
 library(tuber)
 library(syuzhet)
 library(ggplot2)
 library(tidyverse)
-#------
+library(knitr)
+library(kableExtra)
+library(stringr)
+#---
 
-
-#--Report code does not require an API key--
+#---Check to see if API Key file exists---
 APIKey<-file_test("-f","APIKey.rds") #test if apikey exists
 if (APIKey == FALSE) { #run code block if apikey does not exist
   print("No youtube API Key")
   print("See https://developers.google.com/youtube/v3/getting-started")
-  print("expects key as RDS data.frame in form APIKey<-data.frame(app_id='Your App ID Here', app_secret = 'Your App Secret Here')")
+  print("expects key as RDS data.frame in form 
+        APIKey<-data.frame(app_id='Your App ID Here', 
+        app_secret = 'Your App Secret Here')")
+  rm(APIKey) #removes file test
 }else { #run code block if api key exists
-  APIKey<-readRDS("APIKey.rds") #read API key
-  yt_oauth(app_id=APIKey$app_id, app_secret = APIKey$app_secret, token = "") #load key to memory
+  print("Try the R code here with your API key")
+  print("https://raw.githubusercontent.com/dteck/YTSentiment/master/SentimentRanker_wKey.R")
 }
-#------
+#---
 
+#---Link to liked youtube video---
+Baselink<-"https://www.youtube.com/watch?v=HsxBw6ls7Z0" #link to a liked youtube video
+#---
 
-#--Enter the link to the youtube video you want reccomendations for--
-Baselink<-"https://www.youtube.com/watch?v=HsxBw6ls7Z0" #link to a youtube video
-#------
-
-
-#--Extract the video ID, and pull the recomended videos and the base video comments--
+#---Extract video ID---
 Baselink<-str_match(Baselink,"[^=]+$") #regex to extract video ID
-#RelatedVids<- get_related_videos(video_id =Baselink, max_results = 11) #Code with APIKey
-RelatedVids<- readRDS("RelatedVids.rds") #Get recomended
-#baseVid<-get_all_comments(video_id = Baselink) #Code with APIKey
-baseVid<-readRDS("baseVid.rds") #get the comments from that video
-#BaseDetail<-get_video_details(video_id = Baselink)#Code with APIKey
-BaseDetail<-readRDS("BaseDetail.rds")#pull details of the base video
+#---
+
+#---Read related video RDS---
+RelatedVids<-readRDS("RelatedVids.rds") #Load RDS with API results
+#---
+
+#---Read the Base video comments and details RDS---
+baseVid<-readRDS("baseVid.rds") #Load RDS with API results
+BaseDetail<-readRDS("BaseDetail.rds") #Load RDS with API results
 BaseTitle<-BaseDetail$items[[1]]$snippet$title #extract the title of the base video
-#------
+#---
 
 
-#-- build and plot base video emotional averages--
-#sanitize the text by converting to utf-8
-baseVid$sanitary<-iconv(baseVid$textOriginal, to="UTF-8")
-#get emotional levels from each comment
-BaseEmo<-get_nrc_sentiment(baseVid$sanitary)
-#create averages of sentiment and emotion for base video
-Baseavg<-apply(BaseEmo, 2, mean)
-#convert averages to data frame for plotting
-Baseavg<-data.frame(name=Baseavg)
-#plot the emotional sentiment averages
-Avg<-ggplot(Baseavg, aes_(x=row.names(Baseavg), y=Baseavg$name, fill=row.names(Baseavg)))+geom_bar(stat="identity")+theme(legend.position="none",axis.title.x=element_blank(),axis.title.y=element_blank())
-Avg+ggtitle(BaseTitle,paste("Video ID: ",baseVid$videoId[1])) #avgplot1
-#------
+#---Sanitize comments and calculate emotions---
 
-#--get comments for recomended videos--
-# seq<-1:length(RelatedVids$rel_video_id) #code for API Key
-# RelatedComm<-list() #initalize a list for the related video comments
-# for (n in seq){ #get comments for the related video, sanitize the comments by converting to UTF-8 format, Also convert like counts to numeric
-#   RelatedComm[[n]]<-get_all_comments(video_id = as.character(RelatedVids$rel_video_id[n]))
-#   RelatedComm[[n]]$sanitary<-iconv(RelatedComm[[n]]$textOriginal, to="UTF-8")
-#   RelatedComm[[n]]$likeCount<-as.numeric(RelatedComm[[n]]$likeCount)
-# }
-# rm(n,seq) #remove n and sequence used to itterate over list
-RelatedComm<-readRDS("RelatedComm.rds")#loads comments from related videos
-#------
+baseVid$sanitary<-iconv(baseVid$textOriginal, to="UTF-8") #sanitize to utf-8
+BaseEmo<-get_nrc_sentiment(baseVid$sanitary)#get comment emotion
+#---
 
-#--determine emotional expression for reccomended videos--
+#---Calculate Base emotion Averages---
+Baseavg<-apply(BaseEmo, 2, mean)#avg of base sentiment
+Baseavg<-data.frame(name=Baseavg) #df for plotting
+#---
+
+#---Plot base emotion with ggplot--- 
+Avg<-ggplot(Baseavg, aes_(x=row.names(Baseavg), y=Baseavg$name,
+                          fill=row.names(Baseavg)))+geom_bar(stat="identity")+theme(legend.position="none",
+                                                                                    axis.title.x=element_blank(),axis.title.y=element_blank())
+Avg+ggtitle(BaseTitle,paste("Video ID: ",baseVid$videoId[1]))
+#---
+
+#---Read related vid comments RDS---
+RelatedComm<-readRDS("RelatedComm.rds") #Load RDS with API results
+#---
+
+#---Calculate related video emotions---
 seq<-1:length(RelatedVids$rel_video_id) #set iteration length
-RelatedEmo<-list()
-for (n in seq){ #itterate over all comments and get emotional sentiment
+RelatedEmo<-list() #initialize a list to store data frames
+for (n in seq){ #iterate over all comments and get emotional sentiment
   RelatedEmo[[n]]<-get_nrc_sentiment(RelatedComm[[n]]$sanitary)
 }
-rm(n,seq) 
-#------
+rm(n,seq)
+#---
 
-#--calculate emotional averages for recommended videos--
+#---Calculate the averages for the related videos---
 seq<-1:length(RelatedEmo) #set iteration length
-RelatedEmoAvg<-list() 
-for (n in seq){ #calulate averages of emotional senitment
+RelatedEmoAvg<-list()#initialize a list to store data frames
+for (n in seq){ #calculate averages of emotional sentiment
   RelatedEmoAvg[[n]]<-apply(RelatedEmo[[n]][1:10], 2, mean)
 }
 rm(n,seq)
-#------
+#---
 
-#--get the number of comments analyzed--
-CommentCount<-0
-seq<-1:length(RelatedComm)
-for (n in seq){ ##count the number of comments
-  CommentCount<-CommentCount+length(RelatedComm[[n]]$authorDisplayName)
-}
-rm(n,seq)
-#------
 
-#--reshape data--
-RelatedEmoAvg<-data.frame(RelatedEmoAvg) #reshape the dataframe
-RelatedEmoAvg<-data.frame(t(RelatedEmoAvg))
+#---Reshape df, add video IDs---
+RelatedEmoAvg<-data.frame(RelatedEmoAvg) #reshape the data frame
+RelatedEmoAvg<-data.frame(t(RelatedEmoAvg)) #transpose the df
 rownames(RelatedEmoAvg)<-RelatedVids$rel_video_id #set row names
-Baseavg<-data.frame(t(Baseavg)) #transpose the baseavg df
-#------
+#---
 
-#--calculate absolute difference of related video averages from base video--
-AbsoluteEmo<-data.frame() #initialize ABS difference dataframe
+#---Calculate absolute difference---
+Baseavg<-data.frame(t(Baseavg)) #transpose the base avg df
+AbsoluteEmo<-data.frame() #initialize ABS difference data frame
 seq<-1:length(RelatedEmo) 
-for (n in seq){ #calculate difference between base emotions and related video emotions
+for (n in seq){ #calculate difference of base and related video emotions
   AbsoluteEmoTemp<-abs(Baseavg[1,]-RelatedEmoAvg[n,])
   AbsoluteEmo<-rbind(AbsoluteEmo,AbsoluteEmoTemp)
 }
 rm(n,seq,AbsoluteEmoTemp) 
 rownames(AbsoluteEmo)<-RelatedVids$rel_video_id #set row names
-#------
+#---
 
-#--reshape and rank data, then build rankings with links--
-AbsoluteEmo<-data.frame(t(AbsoluteEmo)) #transpose dataframe
-AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #get rank of absolute difference of each emotion for a video
-AbsoluteEmo<-t(AbsoluteEmo) #transose dataframe
-AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #rank columns to get rank of each emotion across all video 
-AbsoluteEmo<-data.frame(AbsoluteEmo) #convert back to dataframe
+
+#---Rank abs difference---
+AbsoluteEmo<-data.frame(t(AbsoluteEmo)) #transpose data frame
+AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #rank abs diff for each emotion by video
+#---  
+
+#---transpose df----
+AbsoluteEmo<-t(AbsoluteEmo) #transpose data frame
+#---
+
+#---Rank Ranks for emotions---
+AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #rank columns 
+AbsoluteEmo<-data.frame(AbsoluteEmo) #convert back to df
+#---
+
+#---Add row sums---
 AbsoluteEmo$sum<-rowSums(AbsoluteEmo) #add sum of rows
-AbsoluteEmo$title<-RelatedVids$title #add titles to emo df
-AbsoluteEmo$link<-paste("https://www.youtube.com/watch?v=",RelatedVids$rel_video_id, sep="") #build links to videos
-RankedList<-data.frame(rank=rank(AbsoluteEmo$sum, ties.method ="first"),title=AbsoluteEmo$title,link=AbsoluteEmo$link) #generate a list of recommended videos and rank of best emotional fit
-#------
+#---
 
-#--plot top ranked video against base video--
-TopRank<-which.min(RankedList$rank)# get the topranked video index value
-ClosestMatch<-RelatedEmoAvg[which.min(RankedList$rank),] #pull emotional avg values from closest match
+#---Add Titles and links---
+AbsoluteEmo$title<-RelatedVids$title #add titles to emo df
+AbsoluteEmo$link<-paste("https://www.youtube.com/watch?v=",
+                        RelatedVids$rel_video_id, sep="") #build links to videos
+#---
+
+#---Compile Ranked list---
+RankedList<-data.frame(rank=rank(AbsoluteEmo$sum, ties.method ="first"),
+                       title=AbsoluteEmo$title,link=AbsoluteEmo$link) #list of videos and rank by emotional fit
+#---
+
+#---Find top rank and plot it with base---
+TopRank<-which.min(RankedList$rank)#top ranked video index value
+ClosestMatch<-RelatedEmoAvg[which.min(RankedList$rank),]#avg values from closest match
 ClosestMatch<-data.frame(t(ClosestMatch)) #transpose df
 colnames(ClosestMatch)<-"1" #set column name to set value for graphing
-Recc<-Avg+geom_point(data=ClosestMatch,aes(shape=18, size=5, y=ClosestMatch$'1', x=colnames(Baseavg)))+scale_shape_identity()+ggtitle(paste(BaseTitle,"-",baseVid$videoId[1]),paste("Reccomended Video: ",RelatedVids$title[TopRank]," - ",RelatedVids$rel_video_id[TopRank]))#add to ggplot to show how close best match video is
+Recc<-Avg+geom_point(data=ClosestMatch,aes(shape=18, size=5, y=ClosestMatch$'1', 
+                                           x=colnames(Baseavg)))+scale_shape_identity()+ggtitle(paste(BaseTitle,"-",
+                                                                                                      baseVid$videoId[1]),paste("Reccomended Video: ",
+                                                                                                                                RelatedVids$title[TopRank]," - ",
+                                                                                                                                RelatedVids$rel_video_id[TopRank]))
+#add to ggplot to show how close best match video is
 Recc
-#------
+#---
 
-#--plot all videos against base video--
+#---add plots of all recommendations--
 RelatedEmoAvgTrans<-data.frame(t(RelatedEmoAvg)) # reshape df for graphing
-seq<-c(1:length(RelatedVids$rel_video_id)) #set number of itterations
+seq<-c(1:length(RelatedVids$rel_video_id)) #set number of iterations
 for (n in seq){ #add data points for each video to the graph to show spread.
-  Recc<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n]), alpha=0.2)
+  Recc<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n], alpha=0.2))
 }
 rm(n,seq) 
 Recc #display final graph
-#------
+#---
 
-#--export ranked list as a CSV--
+#---Write ranked list to CSV--
 write.csv(RankedList,"RankedList.csv", row.names = FALSE) #output ranked list to csv
-RankedList #view ranked list in R studio
-#------
+#---
+
+#---Display ranked list--
+RankedList[order(RankedList$rank),]
+#---
+
+#---Calculate rank changes---
+RankedList$ind<-c(1:10)
+RankDelta<-sum(abs(RankedList$ind-RankedList$rank))
+RankDelta
+#---
