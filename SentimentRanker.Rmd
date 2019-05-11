@@ -234,37 +234,24 @@ kable(AbsoluteEmo) %>%
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-With the table of absolute differences we can now begin reshaping and ranking the data. The idea here is that we want to rotate the data frame above so that each emotion is a row and each video is a column. Then we want to rank each columns values. The larger the value the higher its rank, becuase ranking happens in accending order.
-
-For example if a video had the exact same level of trust as the base video it would rank that videos trust as a 1. If that same video have a very different level of anger it would rank it a 10. 
+The first thing we do is transpose the data frame. This makes it so that each video is a column and each row is an emotion. Then we use the apply() function on each of the columns to rank the emotions. The smaller the number the closer it was to the base video. The larger the farther away from the base video it was.
 ```{r BuildRanks, cache=TRUE}
 AbsoluteEmo<-data.frame(t(AbsoluteEmo)) #transpose dataframe
 AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #get rank of abs diff for each emotion by video
 kable(AbsoluteEmo) %>% 
   kable_styling(latex_options="scale_down")
 ```
+From this table we can see that for the first video fear was the emotion that most closely matched the base video. While positivity was the farthest away from the base video.  
 
-Now we want to rotate it back to the original shape so each video is a row and each emotion is a column. 
+With the emotions for each of the related video ranked by how close they were to the base we want to transpose the data back to its original shape.
 ```{r BuildRanks2, cache=TRUE}
 AbsoluteEmo<-t(AbsoluteEmo) #transose dataframe
 kable(AbsoluteEmo) %>% 
   kable_styling(latex_options="scale_down")
 ```
+Here we again see that for the first video fear was the emotion that most closely matched the base video. While positivity was the farthest away from the base video.  
 
-We then rank across the columns again to get an index of which videos most closely matched the Base videos emotion 
+With the data back in this format we want to use apply() to rank down the columns again. This will tell us for each emotion, what is the order for how close each video was to the Base video relative to the overall emotional profile for that video. 
 ```{r BuildRanks3, cache=TRUE}
 AbsoluteEmo<-apply(AbsoluteEmo,2,rank) #rank columns to get rank of each emotion for all 
 AbsoluteEmo<-data.frame(AbsoluteEmo) #convert back to dataframe
@@ -272,20 +259,21 @@ kable(AbsoluteEmo) %>%
   kable_styling(latex_options="scale_down")
 ```
 
-We then want to to add the sum of each row as a new column.
+
+Now we want to sum up all of the rankings for a row with the code below.
 ```{r BuildRanks4, cache=TRUE}
 AbsoluteEmo$sum<-rowSums(AbsoluteEmo) #add sum of rows
 kable(t(AbsoluteEmo$sum))
 ```
 
-next we add some more columns like the video titles and build a link to each item on the list.
+With the row sums in place we want to add a few more items like the video titles and build a link to each of the videos.
 ```{r BuildRanks5, cache=TRUE}
 AbsoluteEmo$title<-RelatedVids$title #add titles to emo df
 AbsoluteEmo$link<-paste("https://www.youtube.com/watch?v=",
 RelatedVids$rel_video_id, sep="") #build links to videos
 ```
 
-Finally we rank the row sums to build our final list. 
+Now we create a ranked list of the videos using the sum of the rankings. We make sure to break any ties that may occur by having the script select the first entry with a duplicate row sum to be higher rank.
 ```{r RankedList, cache=TRUE}
 RankedList<-data.frame(rank=rank(AbsoluteEmo$sum, ties.method ="first"),
 title=AbsoluteEmo$title,link=AbsoluteEmo$link) 
@@ -294,7 +282,7 @@ kable(RankedList) %>%
   kable_styling(latex_options="scale_down")
 ```
 
-From this ranked list we may want to see how close the top reccomedation video is to our Base emmotional profile. The following code plots the best ranked reccomended vdeio emotion profile against our Base videos profile. 
+From this ranked list we may want to see how close the top recommendation is to our Base video. The following code plots the best ranked videos emotional profile overtop of the Base video emotional profile.
 ```{r TopReccPlot, cache=TRUE}
 TopRank<-which.min(RankedList$rank)# get the topranked video index value
 ClosestMatch<-RelatedEmoAvg[which.min(RankedList$rank),] 
@@ -310,19 +298,20 @@ RelatedVids$rel_video_id[TopRank]))
 Recc
 ```
 
-from this graph we can see that the reccomendation is quite close in several of the emotional categories.  
-As a final grpahical display it might be interesting to plot all of the reccomendations to see what kind of variability there was.
+From this graph we can see that the top recommendation is quite close in several of the emotional categories.  
+As a final visualization we plot all of the videos to see the spread of emotion across all of the suggestions.
+
 ```{r ReccPlotAll, cache=TRUE}
 RelatedEmoAvgTrans<-data.frame(t(RelatedEmoAvg)) # reshape df for graphing
 seq<-c(1:length(RelatedVids$rel_video_id)) #set number of itterations
 for (n in seq){ #add data points for each video to the graph to show spread.
-  Recc<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n]))
+  Recc<-Recc+geom_point(data=RelatedEmoAvgTrans,aes_(y=RelatedEmoAvgTrans[,n], alpha=0.2))
 }
 rm(n,seq) 
 Recc #display final graph
 ```
 
-Now the list is built it is saved as CSV in the working directory. 
+After all of this we save the list to a CSV in the working directory. 
 ```{r SaveList}
 write.csv(RankedList,"RankedList.csv", row.names = FALSE) #output ranked list to csv
 ```
@@ -330,16 +319,23 @@ write.csv(RankedList,"RankedList.csv", row.names = FALSE) #output ranked list to
 
 ##Results
 
-In the table below we can see that we were able to adjust the rankings that YouTube provided (first column). This means it could be a possible avenue for inclusing in the ranknig system that YouTube uses to reccomend videos to users.
+In the table below we can see that we provided a different order of recommended rankings than the one provided by YouTube (first column). This implies that there is potential for improvement in the suggestion system by matching emotional tones expressed by viewers. 
+
 ```{r DisplayList, cache=TRUE}
 kable(RankedList[order(RankedList$rank),]) %>% 
   kable_styling(latex_options="scale_down")
 ```
 
-
+To quantify this we can calculate the difference in video ranking positions. 
+```{r ListDelta, cache=TRUE}
+RankedList$ind<-c(1:10)
+RankDelta<-sum(abs(RankedList$ind-RankedList$rank))
+```
+Here we see that the total number of ranking positions shifted is ```r  RankDelta ```.
 
 ##Conclusion
-We have found that there is room to improve the reccomendations for videos served by YouTube with the additon of natural language processing to match emotional tones across suggestions. It also raises the possibiltiy of using these methods to build sentiment profiles of users. Combine the sentinments of every comment they leave. As well as for every video they like. Find what emotions they are drawn to and feed that back to them.  
-There is a consideration that shold be made for perfomance. This paper is a proof of concept and woudl nto be the most efficent way to impliment this type fo ranking. It would make more sense for YouTube to build its own lexicon that is specific to its comments. This would allow them to get more accurate results reguarding expression of emotions and valance of comments.  
-They shoudl also consider running the sentiment analysis across all comments currently available and going forward when a user submits a comment or edits one it does the sentiment processign then and simpyl saves the numeric results. These logicals could then be quickly processed when building reccomendations.  
-As a further step when auto translation becomes more robust sentiment analysis could be run across the video transcripts to better match content emotion to a users preference. All of these steps may help improve YouTubes core metric of watch time. But barring prooper A/B testing which is outside of the scope of this paper the exact impact is unknonwn.
+We have found that there is room to improve the recommendations for videos served by YouTube with the addition of natural language processing to match emotional tones across suggestions. This also raises the possibility of using these methods to build sentiment profiles of users. One path would be to combine the sentiments of every comment left by a user. As well as building a profile for every video they like. From this YouTube could infer what emotions a user is drawn to and feed that back to them to increase their engagement and watch time.  
+There is a consideration that should be made for performance. This paper is a proof of concept and would not be the most efficient way to implement this type of ranking. It would make more sense for YouTube to build its own lexicon that is specific to its comments. This would allow them to get more accurate results regarding expression of emotions and valance of comments.  
+They should also consider running the sentiment analysis across all comments currently available and then going forward when a user submits a comment or edits one it does the sentiment processing at submission time. The results of these comments and video averages can be stored for quick processing when building and ranking suggestions.  
+As a further step when auto translation becomes more robust sentiment analysis could be run across the video transcripts to build profiles of a user’s preferred emotional content and better match recommendations based on this.  
+All of these steps may help improve YouTubes core metric of watch time but proper A/B testing which is outside of the scope of this paper would be required to estimate the true impact. 
